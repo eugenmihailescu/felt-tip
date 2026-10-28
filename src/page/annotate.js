@@ -415,13 +415,7 @@
     paintHistory();
 
     function hidePanel() {
-      if (moving) {
-        if (moving.distance < 1) {
-          const entry = undoStack.pop();
-          if (entry) annotations = entry.annotations;
-        } else scheduleSave();
-        moving = null;
-      }
+      if (moving) finishMoving();
       if (draft) finishDraft();
       pendingSelect = null;
       pendingStep = null;
@@ -440,7 +434,12 @@
 
     function showPanel() {
       panel.hidden = false;
-      if (!currentTool) currentTool = "pen";
+      const annotation = annotations[selected];
+      if (annotation) {
+        armTool(annotation.type);
+        if (annotation.type === "text") openTextEditor(annotation, true);
+        else hideText();
+      } else if (!currentTool) currentTool = "pen";
       renderTools();
       renderOptions();
       updateCapture();
@@ -497,7 +496,7 @@
       else if (currentTool === "blur") blurOptions();
       else if (currentTool === "move") hint("Drag a mark to a new place.");
       else if (currentTool === "erase") hint("Click a mark to remove it.");
-      else hint("Drag a mark to move it. Pick a tool to draw.");
+      else hint("Click a mark to edit it. Drag a mark to move it.");
     }
 
     function hint(text) {
@@ -762,10 +761,12 @@
       const steps = annotations.filter((item) => item.type === "step");
       steps.sort((a, b) => (a.n ?? 0) - (b.n ?? 0));
       const first = steps[0];
+      const selectedStep = annotations[selected]?.type === "step" ? annotations[selected] : null;
+      const sample = selectedStep || first;
       return {
-        fill: first?.fill || toolPrefs.stepFill,
-        color: first?.color || toolPrefs.stepColor,
-        size: first?.size || toolPrefs.stepSize,
+        fill: sample?.fill || toolPrefs.stepFill,
+        color: sample?.color || toolPrefs.stepColor,
+        size: sample?.size || toolPrefs.stepSize,
         start: first ? model.clampStepStart(first.n) : model.clampStepStart(toolPrefs.stepStart),
       };
     }
@@ -778,7 +779,7 @@
         const index = model.hitAnnotation(measure, annotations, point);
         if (index < 0) return;
         remember();
-        moving = { index, last: point, distance: 0 };
+        moving = { index, last: point, distance: 0, selectIfStill: true };
         capture.setPointerCapture(event.pointerId);
         renderMarks();
         return;
@@ -824,22 +825,16 @@
 
     function onPointerMove(event) {
       const point = pagePoint(event);
+      // A press that hits a mark never starts a new shape. A small drag moves that mark.
       if (pendingSelect) {
         if (pointerDistance(point, pendingSelect) < SELECT_CLICK_PX) return;
         const origin = { x: pendingSelect.x, y: pendingSelect.y };
-        if (pendingSelect.freeMove) {
-          const index = pendingSelect.index;
-          pendingSelect = null;
-          remember();
-          moving = { index, last: origin, distance: 0 };
-          selected = index;
-          dragMoving(point);
-          return;
-        }
-        if (canDraw()) {
-          beginShape(event, origin);
-          updateDraft(point);
-        } else pendingSelect = null;
+        const index = pendingSelect.index;
+        pendingSelect = null;
+        remember();
+        moving = { index, last: origin, distance: 0, selectOnEnd: true };
+        selected = index;
+        dragMoving(point);
         return;
       }
       if (pendingStep) {
@@ -871,12 +866,7 @@
         }
         const pending = pendingSelect;
         pendingSelect = null;
-        if (pending.freeMove) {
-          selected = pending.index;
-          releaseFreePointer();
-          renderMarks();
-          return;
-        }
+        if (pending.freeMove) releaseFreePointer();
         chooseDrawn(pending.index);
         return;
       }
@@ -890,8 +880,9 @@
       }
       if (moving) {
         const free = currentTool == null;
-        finishMoving();
+        const outcome = finishMoving();
         if (free) releaseFreePointer();
+        if (outcome.selectOnEnd || (outcome.selectIfStill && outcome.still)) chooseDrawn(outcome.index);
         return;
       }
       if (!draft) return;
@@ -910,13 +901,19 @@
     }
 
     function finishMoving() {
+      const index = moving.index;
+      const selectOnEnd = Boolean(moving.selectOnEnd);
+      const selectIfStill = Boolean(moving.selectIfStill);
+      let still = false;
       if (moving.distance < 1) {
         const entry = undoStack.pop();
         if (entry) annotations = entry.annotations;
         paintHistory();
+        still = true;
       } else scheduleSave();
       moving = null;
       renderMarks();
+      return { index, selectOnEnd, selectIfStill, still };
     }
 
     function releaseFreePointer() {
@@ -958,8 +955,12 @@
       pendingSelect = null;
       pendingStep = null;
       if (moving) {
+        const selectOnEnd = moving.selectOnEnd;
         const entry = undoStack.pop();
-        if (entry) annotations = entry.annotations;
+        if (entry) {
+          annotations = entry.annotations;
+          if (selectOnEnd) selected = entry.selected;
+        }
         moving = null;
         paintHistory();
       }
@@ -1074,9 +1075,12 @@
       selected = index;
       const annotation = annotations[selected];
       if (!annotation) return;
-      armTool(annotation.type);
-      if (annotation.type === "text") openTextEditor(annotation, true);
-      else hideText();
+      // A hidden toolbox stays out of the page's way. Opening it adopts this mark.
+      if (!panel.hidden) {
+        armTool(annotation.type);
+        if (annotation.type === "text") openTextEditor(annotation, true);
+        else hideText();
+      }
       renderOptions();
       renderMarks();
     }
