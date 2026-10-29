@@ -1,0 +1,8 @@
+# Regenerated Chrome Web Store package and screenshots.
+# The listing text in dist/listing.md stays in the repo.
+dist/*.zip
+dist/*.png
+
+node_modules/
+*.log
+.DS_Store

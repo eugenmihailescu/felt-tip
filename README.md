@@ -63,6 +63,10 @@ Felt Tip can access http, https, and file pages so it can draw saved marks where
 npm test
 ```
 
+## Privacy
+
+Felt Tip stores marks on this browser profile and does not upload them. The policy is in [PRIVACY.md](PRIVACY.md).
+
 ## License
 
 Felt Tip is released under the [MIT License](LICENSE).
