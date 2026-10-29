@@ -1,6 +1,21 @@
 {
   "name": "felt-tip",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Underline, circle, and write on a live web page in desktop Chrome and Brave. Marks stay on the page.",
+  "author": {
+    "name": "Eugen Mihailescu",
+    "email": "eugen.mihailescu@protonmail.com",
+    "url": "https://www.linkedin.com/in/eugenmihailescu"
+  },
+  "license": "MIT",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eugenmihailescu/felt-tip.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eugenmihailescu/felt-tip/issues"
+  },
   "type": "module",
   "scripts": {
     "test": "node --test"
